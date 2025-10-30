@@ -194,19 +194,36 @@ class OpenapiGenerator extends GeneratorForAnnotation<annots.Openapi> {
       var builderCanReadSpec = false;
       if (args.inputSpec is! annots.RemoteSpec &&
           !path.isAbsolute(args.inputSpec.path)) {
-        final maybeAssetId =
-            AssetId(buildStep.inputId.package, args.inputSpec.path);
-        // Check if asset can be read.  If so, build_runner will mark the asset
-        // as a dependency and re-run the builder when it is modified.
-        builderCanReadSpec = await buildStep.canRead(maybeAssetId);
-        if (!builderCanReadSpec) {
+        // Check if the path would escape the package directory (contains ../)
+        // If so, skip asset dependency registration to avoid build_runner errors
+        if (!args.inputSpec.path.contains('../')) {
+          final maybeAssetId =
+              AssetId(buildStep.inputId.package, args.inputSpec.path);
+          // Check if asset can be read.  If so, build_runner will mark the asset
+          // as a dependency and re-run the builder when it is modified.
+          builderCanReadSpec = await buildStep.canRead(maybeAssetId);
+          if (!builderCanReadSpec) {
+            logOutputMessage(
+              log: log,
+              communication: OutputMessage(
+                message: [
+                  ':: Looks like you havent added the spec file [${args.inputSpec.path}] to your build.yaml.',
+                  ':: This is needed for this package to monitor changes to the spec file.',
+                  ':: Find out more here: https://github.com/gibahjoe/openapi-generator-dart/tree/master?tab=readme-ov-file#skipifspecisunchanged-is-deprecated',
+                  '\n',
+                ].join('\n'),
+                level: Level.WARNING,
+              ),
+            );
+          }
+        } else {
           logOutputMessage(
             log: log,
             communication: OutputMessage(
               message: [
-                ':: Looks like you havent added the spec file [${args.inputSpec.path}] to your build.yaml.',
-                ':: This is needed for this package to monitor changes to the spec file.',
-                ':: Find out more here: https://github.com/gibahjoe/openapi-generator-dart/tree/master?tab=readme-ov-file#skipifspecisunchanged-is-deprecated',
+                ':: Specification file [${args.inputSpec.path}] is outside the package directory.',
+                ':: build_runner cannot monitor changes to files outside the package for automatic rebuilds.',
+                ':: The generator will still work, but you\'ll need to manually trigger rebuilds when the spec changes.',
                 '\n',
               ].join('\n'),
               level: Level.WARNING,
